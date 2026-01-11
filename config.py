@@ -12,7 +12,7 @@ BUFFER_SIZE = 4096
 # Configurações criptográficas
 ECDHE_CURVE = "secp256r1"  # P-256
 RSA_KEY_SIZE = 2048
-AES_KEY_SIZE = 32  # 256 bits para AES-256-GCM
+AES_KEY_SIZE = 16  # 128 bits para AES-256-GCM
 HKDF_SALT_SIZE = 32
 NONCE_SIZE = 12  # GCM recomenda 12 bytes
 
