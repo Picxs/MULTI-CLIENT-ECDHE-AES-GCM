@@ -50,6 +50,32 @@ class ChatClient:
         self.client_private_key = None
         self.client_public_key = None
 
+    def print_help(self) -> None:
+        print("\ncomandos:")
+        print("  /help                  - mostrar comandos")
+        print("  /connect [host] [port]  - conectar ao servidor")
+        print("  /status                - mostrar status da conexao/sessao")
+        print("  /whoami                - mostrar seu client_id")
+        print("  /msg [destino] [msg]   - enviar mensagem")
+        print("  /quit                  - sair\n")
+
+    def print_status(self) -> None:
+        connected = (self.reader is not None) and (self.writer is not None)
+        print("\nstatus:")
+        print(f"  conectado: {connected}")
+        if self.session:
+            print(f"  servidor: {self.session.server_host}:{self.session.server_port}")
+            print(f"  client_id: {self.session.client_id}")
+            print(f"  handshake key_c2s: {'ok' if self.session.key_c2s else 'nao'}")
+            print(f"  handshake key_s2c: {'ok' if self.session.key_s2c else 'nao'}")
+            print(f"  seq_send: {self.session.seq_send}")
+            print(f"  seq_recv: {self.session.seq_recv}")
+        else:
+            print("  sessao: nao criada")
+        print("")
+
+
+
 
     # Framing TCP (len + frame)
     async def send_frame_bytes(self, frame_bytes: bytes) -> None:
@@ -130,6 +156,17 @@ class ChatClient:
         if not self.session.key_c2s:
             print("Handshake incompleto: key_c2s não definida.")
             return
+        
+        try:
+            uuid.UUID(recipient_id)
+        except Exception:
+            print("destino invalido: precisa ser um uuid (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
+            return
+
+        if not message or not message.strip():
+            print("mensagem vazia")
+            return
+
 
         # seq_no monotônico
         self.session.seq_send += 1
@@ -219,6 +256,15 @@ class ChatClient:
 
                 if user_input.lower() == "/quit":
                     break
+
+                if user_input.strip() == "/help":
+                    self.print_help()
+                    continue
+
+                if user_input.strip() == "/status":
+                    self.print_status()
+                    continue
+
 
                 if user_input.startswith("/connect"):
                     parts = user_input.split()
