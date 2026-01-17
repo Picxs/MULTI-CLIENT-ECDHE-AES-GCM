@@ -1,1 +1,3 @@
 venv/
+.pem
+__pycache__
