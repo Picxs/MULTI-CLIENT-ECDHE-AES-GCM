@@ -2,6 +2,7 @@
 import asyncio
 import struct
 import uuid
+import json
 from dataclasses import dataclass
 from typing import Optional
 
@@ -135,13 +136,44 @@ class ChatClient:
         # Conecta ao servidor
         self.reader, self.writer = await asyncio.open_connection(host, port)
 
-        # TODO: integrar handshake quando o servidor estiver pronto
-        # 1) serializar pk do cliente (pk_c_pem)
-        # 2) montar/enviar ClientHello (JSON)
-        # 3) receber ServerHello (JSON)
-        # 4) validar certificado + assinatura
-        # 5) calcular Z via ECDH e derivar key_c2s/key_s2c via HKDF
+        # === Handshake JSON (newline-delimited) ===
+        # 1) serializar pk do cliente
+        pk_c_pem = CryptoUtils.serialize_public_key(self.client_public_key)
+
+        # 2) montar/enviar ClientHello (JSON + "\n")
+        client_hello = CryptoUtils.build_client_hello(client_id=client_id, pk_c_pem=pk_c_pem)
+        self.writer.write(CryptoUtils.canonical_json_bytes(client_hello) + b"\n")
+        await self.writer.drain()
+
+        # 3) receber ServerHello (robusto: não depende de newline)
+        try:
+            data = await asyncio.wait_for(self.reader.read(8192), timeout=5)
+        except asyncio.TimeoutError:
+            raise TimeoutError("Timeout esperando ServerHello do servidor (handshake).")
+
+        if not data:
+            raise ConnectionError("Servidor fechou a conexão durante o handshake.")
+
+        server_hello = json.loads(data.decode("utf-8"))
+
+        # 4) validar cert pinning + assinatura e obter pk_s/salt
+        # OBS: cert pinado deve estar em 'server_cert.pem' na raiz do projeto
+        _, _, salt, pk_s_obj = CryptoUtils.client_process_server_hello(
+            client_hello_obj=client_hello,
+            server_hello_obj=server_hello,
+            pinned_cert_path="server_cert.pem",
+        )
+
+        # 5) calcular Z via ECDH e derivar keys via HKDF (TLS1.3-style)
+        z = CryptoUtils.derive_shared_secret(self.client_private_key, pk_s_obj)
+        key_c2s, key_s2c = CryptoUtils.derive_session_keys(z, salt)
+
         # 6) salvar as chaves na sessão
+        self.session.key_c2s = key_c2s
+        self.session.key_s2c = key_s2c
+        self.session.salt = salt
+
+        print("Handshake OK (ECDHE + RSA + HKDF).")
 
         print(f"Conectado como {client_id}")
         return True
