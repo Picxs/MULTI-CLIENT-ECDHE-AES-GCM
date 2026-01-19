@@ -8,7 +8,7 @@ O servidor atua como intermediário confiável, **decifrando, validando e re-cif
 
 ## 📦 Requisitos
 
-- **Python 3.10+** (recomendado)
+- **Python 3.10+**
 - Dependências do projeto:
   ```bash
   pip install -r requirements.txt
